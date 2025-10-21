@@ -34,30 +34,18 @@ public class QuestionController {
 
     private final QuestionService questionService;
     private final UserService userService;
-
-    private Specification<Question> search(String kw) {
-        return new Specification<>() {
-            private static final long serialVersionUID = 1L;
-            @Override
-            public Predicate toPredicate(Root<Question> q, CriteriaQuery<?> query, CriteriaBuilder cb) {
-                query.distinct(true);  // 중복을 제거
-                Join<Question, SiteUser> u1 = q.join("author", JoinType.LEFT);
-                Join<Question, Answer> a = q.join("answerList", JoinType.LEFT);
-                Join<Answer, SiteUser> u2 = a.join("author", JoinType.LEFT);
-                return cb.or(cb.like(q.get("subject"), "%" + kw + "%"), // 제목
-                        cb.like(q.get("content"), "%" + kw + "%"),      // 내용
-                        cb.like(u1.get("username"), "%" + kw + "%"),    // 질문 작성자
-                        cb.like(a.get("content"), "%" + kw + "%"),      // 답변 내용
-                        cb.like(u2.get("username"), "%" + kw + "%"));   // 답변 작성자
-            }
-        };
-    }
-
+    private final AnswerService answerService;
 
     @GetMapping(value = "/detail/{id}")
-    public String detail(Model model, @PathVariable("id") Integer id, AnswerForm answerForm){
+    public String detail(Model model, @PathVariable("id") Integer id, AnswerForm answerForm,
+                         @RequestParam(value="ans-page", defaultValue="0") int answerPage,
+                         @RequestParam(value="ans-ordering", defaultValue="time") String answerOrderMethod) {
         Question question = this.questionService.getQuestion(id);
+        Page<Answer> answerPaging = this.answerService.getAnswerList(question,
+                answerPage, answerOrderMethod);
         model.addAttribute("question", question);
+        model.addAttribute("ans_paging", answerPaging);
+        model.addAttribute("answerForm", answerForm);
         return "question_detail";
     }
 
@@ -86,9 +74,11 @@ public class QuestionController {
     }
 
     @GetMapping("/list")
-    public String list(Model model, @RequestParam(value="page", defaultValue = "0") int page){
-        Page<Question> paging = this.questionService.getList(page);
-        model.addAttribute("paging",paging);
+    public String list(Model model, @RequestParam(value = "page", defaultValue = "0") int page,
+                       @RequestParam(value = "kw", defaultValue = "") String kw) {
+        Page<Question> paging = this.questionService.getList(page, kw);
+        model.addAttribute("paging", paging);
+        model.addAttribute("kw", kw);
         return "question_list";
     }
 
